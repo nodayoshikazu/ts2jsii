@@ -162,7 +162,7 @@ export function visitor(sourceFile: ts.SourceFile) {
     }
 
     //
-    generateProgram(['dist/bridge_original.ts']);
+    generateProgram(['../output/bridge_original.ts']);
 }
 
 

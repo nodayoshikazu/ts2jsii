@@ -14,4 +14,3 @@ $ tsc ts2jsii.ts --m commonjs
 ##### Running
 
 $ node ts2jsii.js original.ts
-

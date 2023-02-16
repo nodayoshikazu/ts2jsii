@@ -144,7 +144,7 @@ function visitor(sourceFile) {
         console.log("".concat(sourceFile.fileName, " (").concat(line + 1, ",").concat(character + 1, "): ").concat(message));
     }
     //
-    generateProgram(['dist/bridge_original.ts']);
+    generateProgram(['../output/bridge_original.ts']);
 }
 exports.visitor = visitor;
 var fileNames = process.argv.slice(2);
