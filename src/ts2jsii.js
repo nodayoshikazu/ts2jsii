@@ -3,121 +3,105 @@ exports.__esModule = true;
 exports.visitor = void 0;
 var fs_1 = require("fs");
 var ts = require("typescript");
+var utils_1 = require("./utils");
 function visitor(sourceFile) {
     var printing = 0;
+    //let class_decl: number = 0;
     var fndepth = 0;
-    var bridge_output = '';
     var global_fn_names = [];
+    var import_names = [];
+    var tut = new utils_1.Ts2jsiiUtils();
+    var clazz = '';
+    var glob_fns = '';
+    var uniontype_class = '';
+    var bridge_output = '';
     visitNode(sourceFile);
     function visitNode(node) {
         //console.log(node.kind, `\t# ts.SyntaxKind.${ts.SyntaxKind[node.kind]}`);
         switch (node.kind) {
-            case ts.SyntaxKind.SourceFile:
-                break;
-            case ts.SyntaxKind.TypeAliasDeclaration:
-                if (ts.isTypeAliasDeclaration(node)) {
-                    console.log("TypeAliasDeclaration=".concat(node.name.escapedText));
-                }
-                break;
-            case ts.SyntaxKind.Identifier:
-                if (ts.isIdentifier(node))
-                    if (0 < printing)
-                        console.log("Identifier=".concat(node.escapedText));
-                break;
             case ts.SyntaxKind.UnionType:
-                console.log('-----UnionType Satrt subtree-----');
-                printing++;
-                ts.forEachChild(node, visitNode);
-                printing--;
-                console.log('-----UnionType End subtree-----');
-                break;
-            case ts.SyntaxKind.StringKeyword:
-                if (0 < printing)
-                    console.log("StringKeyword");
-                break;
-            case ts.SyntaxKind.NumberKeyword:
-                if (0 < printing)
-                    console.log("NumberKeyword");
+                var text = node.getText(); // => 'string | number'
+                var classname = tut.buildUnionClassNameFromTypes(text);
+                var classtmpl = tut.buildClassTemplateForUnionType(classname);
+                var methods = tut.buildMethodsFromTypes(text, classname);
+                uniontype_class = "".concat(classtmpl).concat(methods, "\n}\n");
                 break;
             case ts.SyntaxKind.ClassDeclaration:
                 if (ts.isClassDeclaration(node)) {
                     // class name
-                    printing++;
-                    console.log("ClassDeclaration=".concat(node.getText()));
-                    console.log('-----ClassDecl Satrt subtree-----');
-                    ts.forEachChild(node, visitNode);
-                    console.log('-----ClassDecl End subtree-----');
-                    printing--;
+                    var decl = node.getText();
+                    var classname_1 = tut.findClassNameFromDecl(decl);
+                    import_names.push(classname_1);
+                    var t = tut.buildCopyClassTemplate(decl);
+                    var ctor = tut.buildCopyClassCtor(decl);
+                    clazz = "".concat(t).concat(ctor);
                 }
                 break;
-            case ts.SyntaxKind.Constructor:
-                if (0 < printing)
-                    console.log("Constructor=".concat(node.getText()));
-                break;
             case ts.SyntaxKind.MethodDeclaration:
-                if (0 < printing)
-                    console.log("Method=".concat(node.getText()));
+                var meth_decl = node.getText();
+                var method = tut.buildCopyClassMethod(meth_decl);
+                clazz = "".concat(clazz).concat(method);
                 break;
             case ts.SyntaxKind.FunctionDeclaration:
                 if (ts.isFunctionDeclaration(node)) {
                     // function
                     fndepth++; // depth==1 if a function is global
                     if (fndepth === 1) {
-                        printing++;
                         var fntext = node.getText(); // function code
-                        var fn = node.name.escapedText;
+                        var fn = tut.buildGlobalFnFromFunction(fntext);
+                        var m = fntext.match(/function +([\S]+)\(/);
                         global_fn_names.push(fn);
-                        debugger;
-                        console.log("L1 FunctionDeclaration=".concat(node.name.escapedText, "\n").concat(fntext));
-                        console.log('-----FnDecl Satrt subtree-----');
-                        ts.forEachChild(node, visitNode);
-                        console.log('-----FnDecl End subtree-----');
-                        printing--;
+                        import_names.push(m[1]);
+                        glob_fns = tut.buildGlobalFnDecl(global_fn_names);
                     }
                     fndepth--;
                 }
                 break;
-            case ts.SyntaxKind.ExportKeyword:
-            case ts.SyntaxKind.PropertyDeclaration:
-            case ts.SyntaxKind.Parameter:
-            case ts.SyntaxKind.Block:
-            case ts.SyntaxKind.ExpressionStatement:
-            case ts.SyntaxKind.BinaryExpression:
-            case ts.SyntaxKind.PropertyAccessExpression:
-            case ts.SyntaxKind.ThisKeyword:
-            case ts.SyntaxKind.FirstAssignment:
-            case ts.SyntaxKind.TypeReference:
-            case ts.SyntaxKind.CallExpression:
-            case ts.SyntaxKind.TemplateExpression:
-            case ts.SyntaxKind.TemplateHead:
-            case ts.SyntaxKind.TemplateSpan:
-            case ts.SyntaxKind.TypeOfExpression:
-            case ts.SyntaxKind.LastTemplateToken:
-            case ts.SyntaxKind.StringLiteral:
             case ts.SyntaxKind.EndOfFileToken:
+                var imp = tut.buildImports(import_names);
+                bridge_output += imp;
+                bridge_output += glob_fns;
+                bridge_output += '\n';
+                bridge_output += uniontype_class;
+                bridge_output += '\n';
+                clazz += "\n}\n";
+                bridge_output += clazz;
+                //console.log(bridge_output);
+                console.log('***END***');
                 break;
-            case ts.SyntaxKind.ForStatement:
-            case ts.SyntaxKind.ForInStatement:
-            case ts.SyntaxKind.WhileStatement:
-            case ts.SyntaxKind.DoStatement:
-                if (node.statement.kind !== ts.SyntaxKind.Block) {
-                    report(node, 'A looping statement\'s contents should be wrapped in a block body.');
-                }
-                break;
-            case ts.SyntaxKind.IfStatement:
-                var ifStatement = node;
-                if (ifStatement.thenStatement.kind !== ts.SyntaxKind.Block) {
-                    report(ifStatement.thenStatement, 'An if statement\'s contents should be wrapped in a block body.');
-                }
-                if (ifStatement.elseStatement &&
-                    ifStatement.elseStatement.kind !== ts.SyntaxKind.Block &&
-                    ifStatement.elseStatement.kind !== ts.SyntaxKind.IfStatement) {
-                    report(ifStatement.elseStatement, 'An else statement\'s contents should be wrapped in a block body.');
-                }
-                break;
+            /*
+             case ts.SyntaxKind.SourceFile:
+             case ts.SyntaxKind.TypeAliasDeclaration:
+             case ts.SyntaxKind.Identifier:
+             case ts.SyntaxKind.Constructor:
+             case ts.SyntaxKind.StringKeyword:
+             case ts.SyntaxKind.NumberKeyword:
+             case ts.SyntaxKind.ExportKeyword:
+             case ts.SyntaxKind.PropertyDeclaration:
+             case ts.SyntaxKind.Parameter:
+             case ts.SyntaxKind.Block:
+             case ts.SyntaxKind.ExpressionStatement:
+             case ts.SyntaxKind.BinaryExpression:
+             case ts.SyntaxKind.PropertyAccessExpression:
+             case ts.SyntaxKind.ThisKeyword:
+             case ts.SyntaxKind.FirstAssignment:
+             case ts.SyntaxKind.TypeReference:
+             case ts.SyntaxKind.CallExpression:
+             case ts.SyntaxKind.TemplateExpression:
+             case ts.SyntaxKind.TemplateHead:
+             case ts.SyntaxKind.TemplateSpan:
+             case ts.SyntaxKind.TypeOfExpression:
+             case ts.SyntaxKind.LastTemplateToken:
+             case ts.SyntaxKind.StringLiteral:
+             case ts.SyntaxKind.ForStatement:
+             case ts.SyntaxKind.ForInStatement:
+             case ts.SyntaxKind.WhileStatement:
+             case ts.SyntaxKind.DoStatement:
+             case ts.SyntaxKind.IfStatement:
+             break;
+                 */
         }
         ts.forEachChild(node, visitNode);
-        //
     }
     function generateProgram(filenames) {
         /*
@@ -129,19 +113,7 @@ function visitor(sourceFile) {
           to maniplate original code but learning how to do it for a small amount of
           time is difficult. So I opted for a simple fileWrite
         */
-        debugger;
-        var imp_glfn = "import {\n";
-        for (var _i = 0, global_fn_names_1 = global_fn_names; _i < global_fn_names_1.length; _i++) {
-            var fnname = global_fn_names_1[_i];
-            imp_glfn += "\t".concat(fnname, " as ").concat(fnname, "Origin,");
-        }
-        imp_glfn += "\n} from \"upwork_original\";\n";
-        bridge_output += imp_glfn;
         (0, fs_1.writeFileSync)(filenames[0], bridge_output);
-    }
-    function report(node, message) {
-        var _a = sourceFile.getLineAndCharacterOfPosition(node.getStart()), line = _a.line, character = _a.character;
-        console.log("".concat(sourceFile.fileName, " (").concat(line + 1, ",").concat(character + 1, "): ").concat(message));
     }
     //
     generateProgram(['../output/bridge_original.ts']);

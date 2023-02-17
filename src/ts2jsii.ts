@@ -1,90 +1,90 @@
 import { Project, ScriptTarget } from "ts-morph";
 import { readFileSync, writeFileSync } from "fs";
 import * as ts from "typescript";
+import { Ts2jsiiUtils } from "./utils";
+
+
 
 export function visitor(sourceFile: ts.SourceFile) {
     let printing: number = 0;
+    //let class_decl: number = 0;
     let fndepth: number = 0;
-    let bridge_output: string = '';
     let global_fn_names: any[] = [];
+    let import_names: any[] = [];
+    let tut = new Ts2jsiiUtils();
+    let clazz = '';
+    let glob_fns = '';
+    let uniontype_class = '';
+    let bridge_output = '';
+
     
     visitNode(sourceFile);
 
     function visitNode(node: ts.Node) {
 	//console.log(node.kind, `\t# ts.SyntaxKind.${ts.SyntaxKind[node.kind]}`);
 	switch (node.kind) {
-	    case ts.SyntaxKind.SourceFile:
-		break;
-	    case ts.SyntaxKind.TypeAliasDeclaration:
-		if (ts.isTypeAliasDeclaration(node)) {
-		    console.log(`TypeAliasDeclaration=${node.name.escapedText}`);
-		}
-		break; 
-
-	    case ts.SyntaxKind.Identifier:
-		if (ts.isIdentifier(node))
-		    if (0 < printing)
-			console.log(`Identifier=${node.escapedText}`);
-		break; 
 	    case ts.SyntaxKind.UnionType:
-		console.log('-----UnionType Satrt subtree-----');
-		printing++;
-		ts.forEachChild(node, visitNode);
-		printing--;
-		console.log('-----UnionType End subtree-----');
-		break;
-	    case ts.SyntaxKind.StringKeyword:
-		if (0 < printing)
-		    console.log(`StringKeyword`);
-		break;
-	    case ts.SyntaxKind.NumberKeyword:
-		if (0 < printing)
-		    console.log(`NumberKeyword`);
-		break;
+		let text = node.getText(); // => 'string | number'
+		let classname = tut.buildUnionClassNameFromTypes(text);
+		let classtmpl = tut.buildClassTemplateForUnionType(classname);
+		let methods   = tut.buildMethodsFromTypes(text, classname);
+		uniontype_class = `${classtmpl}${methods}\n}\n`;
 
+		break;
 	    case ts.SyntaxKind.ClassDeclaration:
 		if (ts.isClassDeclaration(node)) {
 		    // class name
-		    printing++;
-		    console.log(`ClassDeclaration=${node.getText()}`);
-		    console.log('-----ClassDecl Satrt subtree-----');
-		    ts.forEachChild(node, visitNode);
-		    console.log('-----ClassDecl End subtree-----');
-		    printing--;
+		    let decl = node.getText();
+		    let classname = tut.findClassNameFromDecl(decl);
+		    import_names.push(classname);
+		    
+		    let t = tut.buildCopyClassTemplate(decl);
+		    let ctor = tut.buildCopyClassCtor(decl);
+		    clazz = `${t}${ctor}`;
 		}
 		break;
-	    case ts.SyntaxKind.Constructor:
-		if (0 < printing)		
-		    console.log(`Constructor=${node.getText()}`);
-		break;
 	    case ts.SyntaxKind.MethodDeclaration:
-		if (0 < printing)
-		    console.log(`Method=${node.getText()}`);
+		let meth_decl = node.getText();
+		let method = tut.buildCopyClassMethod(meth_decl);
+		clazz = `${clazz}${method}`;
 		break;
+
 	    case ts.SyntaxKind.FunctionDeclaration:
 		if (ts.isFunctionDeclaration(node)) {
 		    // function
 		    fndepth++;  // depth==1 if a function is global
 		    if (fndepth===1) {
-			printing++;
 			let fntext = node.getText();  // function code
-
-			let fn = node.name.escapedText;
+			let fn = tut.buildGlobalFnFromFunction(fntext);
+			let m = fntext.match(/function +([\S]+)\(/);
 			global_fn_names.push(fn);
-			debugger
-			console.log(`L1 FunctionDeclaration=${node.name.escapedText}\n${fntext}`);
-			console.log('-----FnDecl Satrt subtree-----');
-			ts.forEachChild(node, visitNode);
-			console.log('-----FnDecl End subtree-----');
-			printing--;
+			import_names.push(m[1]);
+			glob_fns = tut.buildGlobalFnDecl(global_fn_names);
 		    }
 		    fndepth--;
 		}
 		break; 
-
+	    case ts.SyntaxKind.EndOfFileToken:
+		let imp = tut.buildImports(import_names);
+		bridge_output += imp;
+		bridge_output += glob_fns;
+		bridge_output += '\n';
+		bridge_output += uniontype_class;
+		bridge_output += '\n';
+		clazz += "\n}\n";
+		bridge_output += clazz;
+		//console.log(bridge_output);
+		console.log('***END***');
+		break;
+	   /*
+	    case ts.SyntaxKind.SourceFile:
+	    case ts.SyntaxKind.TypeAliasDeclaration:
+	    case ts.SyntaxKind.Identifier:
+	    case ts.SyntaxKind.Constructor:
+	    case ts.SyntaxKind.StringKeyword:
+	    case ts.SyntaxKind.NumberKeyword:
 	    case ts.SyntaxKind.ExportKeyword:
 	    case ts.SyntaxKind.PropertyDeclaration:
-
 	    case ts.SyntaxKind.Parameter:
 	    case ts.SyntaxKind.Block:
 	    case ts.SyntaxKind.ExpressionStatement:
@@ -100,40 +100,15 @@ export function visitor(sourceFile: ts.SourceFile) {
 	    case ts.SyntaxKind.TypeOfExpression:
 	    case ts.SyntaxKind.LastTemplateToken:
 	    case ts.SyntaxKind.StringLiteral:
-	    case ts.SyntaxKind.EndOfFileToken:
-		break;
 	    case ts.SyntaxKind.ForStatement:
 	    case ts.SyntaxKind.ForInStatement:
 	    case ts.SyntaxKind.WhileStatement:
 	    case ts.SyntaxKind.DoStatement:
-		if ((node as ts.IterationStatement).statement.kind !== ts.SyntaxKind.Block) {
-		    report(
-			node,
-			'A looping statement\'s contents should be wrapped in a block body.'
-		    );
-		}
-		break;
-
 	    case ts.SyntaxKind.IfStatement:
-		const ifStatement = node as ts.IfStatement;
-		if (ifStatement.thenStatement.kind !== ts.SyntaxKind.Block) {
-		    report(ifStatement.thenStatement, 'An if statement\'s contents should be wrapped in a block body.');
-		}
-		if (
-		    ifStatement.elseStatement &&
-			ifStatement.elseStatement.kind !== ts.SyntaxKind.Block &&
-			ifStatement.elseStatement.kind !== ts.SyntaxKind.IfStatement
-		) {
-		    report(
-			ifStatement.elseStatement,
-			'An else statement\'s contents should be wrapped in a block body.'
-		    );
-		}
 		break;
-
+            */
 	}
 	ts.forEachChild(node, visitNode);
-	//
     }
 
     function generateProgram(filenames: string[]): void {
@@ -146,21 +121,8 @@ export function visitor(sourceFile: ts.SourceFile) {
 	  to maniplate original code but learning how to do it for a small amount of
 	  time is difficult. So I opted for a simple fileWrite
 	*/
-	debugger
-	let imp_glfn = "import {\n";
-	for (let fnname of global_fn_names) {
-	    imp_glfn += `\t${fnname} as ${fnname}Origin,`;
-	}
-	imp_glfn += "\n} from \"upwork_original\";\n";
-	bridge_output += imp_glfn;
 	writeFileSync(filenames[0], bridge_output);
     }
-
-    function report(node: ts.Node, message: string) {
-	const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-	console.log(`${sourceFile.fileName} (${line + 1},${character + 1}): ${message}`);
-    }
-
     //
     generateProgram(['../output/bridge_original.ts']);
 }
