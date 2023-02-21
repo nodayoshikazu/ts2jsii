@@ -1,4 +1,3 @@
-//import { handlebars } from "handlebars";
 import * as Handlebars from 'handlebars';
 
 // uses handlebrs.js
@@ -34,17 +33,16 @@ const GLOBAL_TEMPLATE: string =
 }`;
 
 const GLOBAL_FN_TEMPLATE: string = 
-`    {{fnname}}() {
-	return {{fnname}}Origin();
+`    {{fnname}}({{params}}) {
+	return {{fnname}}Origin({{pnames}});
     }
 `;
 
 const IMPORT_FN_TEMPLATE: string = `{{fnname}} as {{fnname}}Origin`;
 const IMPORT_TEMPLATE: string =
 `import {
-    // foo as fooOrigin
     {{imports}}
-} from "./upwork_original";\n\n`;
+} from "./original";\n\n`;
 
 
 export class Ts2jsiiUtils {
@@ -55,7 +53,7 @@ export class Ts2jsiiUtils {
     }
 
     findClassNameFromDecl(decl: string): string {
-	let m = decl.match(/class +([\S]+)/);
+	let m: any = decl.match(/class +([\S]+)/);
 	if (!m) {
 	    console.error(`Error: class name is not found in "${decl}"`);
 	    return null;
@@ -64,75 +62,101 @@ export class Ts2jsiiUtils {
     }
 
     // e.g.constructor(name: string, age: number) 
-    findCtorSignatureFromDecl(decl: string): string {
-	let m = decl.match(/constructor\(([^\)]+)\)/);
+    findCtorSignatureFromDecl(fndecl: string): string {
+	let m: any = fndecl.match(/constructor\(([^\)]+)\)/);
 	if (!m) {
-	    console.error(`Error: class constructor is not found in "${decl}"`);
+	    console.error(`Error: class constructor is not found in "${fndecl}"`);
 	    return null;
 	}
 	return m[1];
     }
 
     buildCopyClassTemplate(class_decl: string): string {
-	let classname = this.findClassNameFromDecl(class_decl);
-	let data = {classname: classname};
+	let classname: string = this.findClassNameFromDecl(class_decl);
+	let data: Object = {classname: classname};
 	let tmpl: any = Handlebars.compile(COPY_CLASS_TEMPLATE);
 	// add ctor, method afer this
 	return tmpl(data);
     }
 
     buildCopyClassCtor(decl: string): string {
-	let classname = this.findClassNameFromDecl(decl);
-	let sig = this.findCtorSignatureFromDecl(decl);
-	let params = sig.match(/([\S]+)(?=:)/g).join(', ');
-	let data = {constructor_signature: sig, classname: classname, params: params};
-	let tmpl: any = Handlebars.compile(COPY_CLASS_CTOR_TEMPLATE);
-	return tmpl(data);
+	let classname: string = this.findClassNameFromDecl(decl);
+	let ctors: string[] = decl.match(/constructor\([^\)]*\)/g);
+	let numCtors: number = ctors.length;
+	let results: string[] = [];
+	
+	for (let ctor of ctors) {
+	    // Takes care of overloaded ctors if any
+	    let sig: string = this.findCtorSignatureFromDecl(ctor);
+	    let params: string = sig.match(/([\S]+)(?=:)/g).join(', ');
+	    let data: Object = {constructor_signature: sig,
+				classname: classname,
+				params: params};
+
+	    let tmpl: any = Handlebars.compile(COPY_CLASS_CTOR_TEMPLATE);
+	    results.push(tmpl(data));
+	}
+	return results.join('');
     }
 
-    /*
-    greet(param: UnionType) {
-	console.log(`The parameter is of type ${typeof param}`);
-    }
-    */
     buildCopyClassMethod(decl: string): string {
-	let method_name = decl.match(/^([\S]+)(?=\()/)[1];
+	let method_name: string = decl.match(/^([\S]+)(?=\()/)[1];
 	let tmpl: any = Handlebars.compile(COPY_CLASS_METHOD_TEMPLATE);
-	let data = {method_name: method_name, union_typename: this.union_typename};
+	let data: Object = {method_name: method_name, union_typename: this.union_typename};
 	return tmpl(data);
     }
 
     buildUnionClassNameFromTypes(text: string): string {
 	this.union_typename = text;
 	let types: string[] = text.split(/ *\| */);  // remove spaces around |
-	let classname: string = this.capitalizeFirstLetter(types[0]);
+	const brac2str = t => this.capitalizeFirstLetter(t.replace('[]', 'Array'));
+	types = types.map(brac2str);
+	
+	let classname: string = '';
 	let tmpl: any = Handlebars.compile("{{classname}}Or{{typename}}");
     
-	for (let i=1; i < types.length; i++) {
-	    let data = {classname: classname, typename: this.capitalizeFirstLetter(types[i])};
+	for (let t of types) {
+	    let data: Object = {classname: classname, typename: t};
 	    classname = tmpl(data);
 	}
+	// Remove the first OR
+	classname = classname.replace(/^Or/, '');
 	return classname;
     }
 
     buildClassTemplateForUnionType(classname: string): string {
 	let tmpl: any = Handlebars.compile(UNION_CLASS_TEMPLATE);
-	let data = {classname: classname, typetext: this.union_typename};
+	let data: Object = {classname: classname, typetext: this.union_typename};
 	let union_class_template2: string = tmpl(data);
 	return union_class_template2;
     }
 
     buildMethodsFromTypes(text: string, classname: string): string {
 	let types: string[] = text.split(/ *\| */);  // remove spaces around |
+	const abbrevTypes: Object = {
+	    'string': 'Str',
+	    'number': 'Num',
+	    'boolean': 'Bool',
+	    'any': 'Any',
+	    'Date': 'Date',
+	    'Object': 'Obj'
+	};
 	const _tmpl: any =
-`    static from{{typename}}(value: {{typename}}): {{classname}} {
+`    static from{{typename}}(value: {{typename_orig}}): {{classname}} {
          return new {{classname}}(value);
     }`;
 	let tmpl: any = Handlebars.compile(_tmpl);
 	let methods: string[] = [];
-
+	
 	for (let t of types) {
-	    let data = {classname: classname, typename: t};
+	    let brackets: string = '';
+	    let t_o: string = t;
+	    if (t.endsWith('[]')) {
+		t = t.replace('[]', '');
+		brackets = 'Array';
+	    }
+	    t = `${abbrevTypes[t]}${brackets}`;
+	    let data: Object = {classname: classname, typename: t, typename_orig: t_o};
 	    methods.push(tmpl(data));
 	}
 	return methods.join('\n');
@@ -144,35 +168,42 @@ export class Ts2jsiiUtils {
 	              console.log("this is a global function");
 	      }
 	*/
-	let m = decl.match(/function +([\S]+)\(/);
+	let m: any = decl.match(/function +([\S]+)\(([^\)]*)\)/);
 	if (!m) {
 	    console.error(`Error: function name is not found in "${decl}"`);
 	    return null;
 	}
-	let fnname = m[1]; // function name
+	let fnname: string = m[1]; // function name
+	let params: string = m[2]; // can be null
+	let pnames: string = '';
+	
+	if (0 < params.length) {
+	    let pn: string[] = params.match(/([\S]+)(?=:)/g);
+	    pnames = pn.join(', ');
+	}
 	let tmpl: any = Handlebars.compile(GLOBAL_FN_TEMPLATE);
-	let data = {fnname: fnname};
+	let data: Object = {fnname: fnname, params: params, pnames: pnames};
 	return tmpl(data);
     }
     
     buildGlobalFnDecl(fns: string[]): string {
 	let tmpl: any = Handlebars.compile(GLOBAL_TEMPLATE);
 	let fns_str: string = fns.join('\n');
-	let data = {fns: fns_str};
+	let data: Object = {fns: fns_str};
 	return tmpl(data);
     }
 
     buildImports(import_names: string[]): string {
-	let fn_tmpl = Handlebars.compile(IMPORT_FN_TEMPLATE);
+	let fn_tmpl: any = Handlebars.compile(IMPORT_FN_TEMPLATE);
 	let tmpl: any = Handlebars.compile(IMPORT_TEMPLATE);
 	let fns: string[] = [];
 	
 	for (let fn of import_names) {
-	    let imp = fn_tmpl({fnname: fn});
+	    let imp: any = fn_tmpl({fnname: fn});
 	    fns.push(imp);
 	}
 	let imp_str: string = fns.join(',\n    ');
-	let data = {imports: imp_str};
+	let data: Object = {imports: imp_str};
 	return tmpl(data);
     }
 

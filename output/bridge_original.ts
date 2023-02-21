@@ -1,35 +1,59 @@
 import {
-    // foo as fooOrigin
     ExampleClass as ExampleClassOrigin,
-    globalExample as globalExampleOrigin
-} from "./upwork_original";
+    globalExample as globalExampleOrigin,
+    globalError as globalErrorOrigin,
+    globalLogging as globalLoggingOrigin
+} from "./original";
 
 export class Globals {
     globalExample() {
 	return globalExampleOrigin();
     }
 
+    globalError(message: string, d: Date) {
+	return globalErrorOrigin(message, d);
+    }
+
+    globalLogging(messages: string[], d: Date) {
+	return globalLoggingOrigin(messages, d);
+    }
+
 }
-export classs StringOrNumber {
+export classs StringOrNumberOrStringArrayOrNumberArray {
     public _value: any;
-    private constructor(value: string | number) {
+    private constructor(value: string | number | string[] | number[]) {
          this._value = value;
     }
-    static fromstring(value: string): StringOrNumber {
-         return new StringOrNumber(value);
+    static fromStr(value: string): StringOrNumberOrStringArrayOrNumberArray {
+         return new StringOrNumberOrStringArrayOrNumberArray(value);
     }
-    static fromnumber(value: number): StringOrNumber {
-         return new StringOrNumber(value);
+    static fromNum(value: number): StringOrNumberOrStringArrayOrNumberArray {
+         return new StringOrNumberOrStringArrayOrNumberArray(value);
+    }
+    static fromStrArray(value: string[]): StringOrNumberOrStringArrayOrNumberArray {
+         return new StringOrNumberOrStringArrayOrNumberArray(value);
+    }
+    static fromNumArray(value: number[]): StringOrNumberOrStringArrayOrNumberArray {
+         return new StringOrNumberOrStringArrayOrNumberArray(value);
     }
 }
 
 export class ExampleClass {
     _boxed: ExampleClassOrigin;
-    constructor(name: string, age: number) {
-	_boxed = new ExampleClassOrigin(name, age);
+    constructor(name: string, age: number, date: address: string[], lnum: number[]) {
+	_boxed = new ExampleClassOrigin(name, age, date, address, lnum);
     }
-    greet(param: string | number) {
+    constructor(name: string) {
+	_boxed = new ExampleClassOrigin(name);
+    }
+    getName(param: string | number | string[] | number[]) {
+	this._boxed.getName(param._value);
+    }
+    greet(param: string | number | string[] | number[]) {
 	this._boxed.greet(param._value);
+    }
+    showErrr(param: string | number | string[] | number[]) {
+	this._boxed.showErrr(param._value);
     }
 
 }
