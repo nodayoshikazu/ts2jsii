@@ -9,7 +9,7 @@ const COPY_CLASS_TEMPLATE: string =
 
 const COPY_CLASS_CTOR_TEMPLATE: string = 
 `    constructor({{constructor_signature}}) {
-	_boxed = new {{classname}}Origin({{params}});
+	this._boxed = new {{classname}}Origin({{params}});
     }
 `;
 
@@ -20,7 +20,7 @@ const COPY_CLASS_METHOD_TEMPLATE: string =
 `;
 
 const UNION_CLASS_TEMPLATE: string =
-`export classs {{classname}} {
+`export class {{classname}} {
     public _value: any;
     private constructor(value: {{typetext}}) {
          this._value = value;
@@ -47,7 +47,8 @@ const IMPORT_TEMPLATE: string =
 
 export class Ts2jsiiUtils {
     union_typename: string;
-
+    union_typename_ored: string;
+    
     capitalizeFirstLetter(str: string): string {
 	return `${str.charAt(0).toUpperCase()}${str.slice(1)}`;
     }
@@ -101,13 +102,14 @@ export class Ts2jsiiUtils {
 
     buildCopyClassMethod(decl: string): string {
 	let method_name: string = decl.match(/^([\S]+)(?=\()/)[1];
+	debugger
 	let tmpl: any = Handlebars.compile(COPY_CLASS_METHOD_TEMPLATE);
 	let data: Object = {method_name: method_name, union_typename: this.union_typename};
 	return tmpl(data);
     }
 
     buildUnionClassNameFromTypes(text: string): string {
-	this.union_typename = text;
+	
 	let types: string[] = text.split(/ *\| */);  // remove spaces around |
 	const brac2str = t => this.capitalizeFirstLetter(t.replace('[]', 'Array'));
 	types = types.map(brac2str);
@@ -121,12 +123,14 @@ export class Ts2jsiiUtils {
 	}
 	// Remove the first OR
 	classname = classname.replace(/^Or/, '');
+	this.union_typename_ored = text;
+	this.union_typename = classname;
 	return classname;
     }
 
     buildClassTemplateForUnionType(classname: string): string {
 	let tmpl: any = Handlebars.compile(UNION_CLASS_TEMPLATE);
-	let data: Object = {classname: classname, typetext: this.union_typename};
+	let data: Object = {classname: classname, typetext: this.union_typename_ored};
 	let union_class_template2: string = tmpl(data);
 	return union_class_template2;
     }

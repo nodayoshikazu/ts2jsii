@@ -4,9 +4,9 @@ exports.Ts2jsiiUtils = void 0;
 var Handlebars = require("handlebars");
 // uses handlebrs.js
 var COPY_CLASS_TEMPLATE = "export class {{classname}} {\n    _boxed: {{classname}}Origin;\n";
-var COPY_CLASS_CTOR_TEMPLATE = "    constructor({{constructor_signature}}) {\n\t_boxed = new {{classname}}Origin({{params}});\n    }\n";
+var COPY_CLASS_CTOR_TEMPLATE = "    constructor({{constructor_signature}}) {\n\tthis._boxed = new {{classname}}Origin({{params}});\n    }\n";
 var COPY_CLASS_METHOD_TEMPLATE = "    {{method_name}}(param: {{union_typename}}) {\n\tthis._boxed.{{method_name}}(param._value);\n    }\n";
-var UNION_CLASS_TEMPLATE = "export classs {{classname}} {\n    public _value: any;\n    private constructor(value: {{typetext}}) {\n         this._value = value;\n    }\n"; // add methods and a closing brace at the end
+var UNION_CLASS_TEMPLATE = "export class {{classname}} {\n    public _value: any;\n    private constructor(value: {{typetext}}) {\n         this._value = value;\n    }\n"; // add methods and a closing brace at the end
 var GLOBAL_TEMPLATE = "export class Globals {\n{{fns}}\n}";
 var GLOBAL_FN_TEMPLATE = "    {{fnname}}({{params}}) {\n\treturn {{fnname}}Origin({{pnames}});\n    }\n";
 var IMPORT_FN_TEMPLATE = "{{fnname}} as {{fnname}}Origin";
@@ -61,13 +61,13 @@ var Ts2jsiiUtils = /** @class */ (function () {
     };
     Ts2jsiiUtils.prototype.buildCopyClassMethod = function (decl) {
         var method_name = decl.match(/^([\S]+)(?=\()/)[1];
+        debugger;
         var tmpl = Handlebars.compile(COPY_CLASS_METHOD_TEMPLATE);
         var data = { method_name: method_name, union_typename: this.union_typename };
         return tmpl(data);
     };
     Ts2jsiiUtils.prototype.buildUnionClassNameFromTypes = function (text) {
         var _this = this;
-        this.union_typename = text;
         var types = text.split(/ *\| */); // remove spaces around |
         var brac2str = function (t) { return _this.capitalizeFirstLetter(t.replace('[]', 'Array')); };
         types = types.map(brac2str);
@@ -80,11 +80,13 @@ var Ts2jsiiUtils = /** @class */ (function () {
         }
         // Remove the first OR
         classname = classname.replace(/^Or/, '');
+        this.union_typename_ored = text;
+        this.union_typename = classname;
         return classname;
     };
     Ts2jsiiUtils.prototype.buildClassTemplateForUnionType = function (classname) {
         var tmpl = Handlebars.compile(UNION_CLASS_TEMPLATE);
-        var data = { classname: classname, typetext: this.union_typename };
+        var data = { classname: classname, typetext: this.union_typename_ored };
         var union_class_template2 = tmpl(data);
         return union_class_template2;
     };
