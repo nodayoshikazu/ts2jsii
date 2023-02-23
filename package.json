@@ -12,7 +12,7 @@
   ],
   "description": "typescript to jsii script transformer",
   "scripts": {
-    "build": "cd src && tsc ts2jsii.ts --m commonjs",
+    "build": "cd src && ../node_modules/typescript/bin/tsc ts2jsii.ts --m commonjs",
     "test": "cd src && node ts2jsii.js ../test/original.ts",
     "test2": "cd src && node ts2jsii.js ../test/original2.ts && cat ../output/bridge_original.ts",
     "test3": "cd src && node ts2jsii.js ../test/original3.ts && cat ../output/bridge_original.ts"
@@ -23,11 +23,9 @@
   },
   "devDependencies": {
     "@types/node": "^18.13.0",
-    "ts-morph": "^17.0.1"
+    "typescript": "^4.9.5"
   },
   "dependencies": {
     "handlebars": "^4.7.7",
-    "ramda": "^0.28.0",
-    "typescript": "^4.9.5"
   }
 }

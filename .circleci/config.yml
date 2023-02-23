@@ -16,8 +16,11 @@ jobs:
       - node/install-packages:
           pkg-manager: npm
       - run:
+          name: "Install packages"
+          command: "npm install"
+      - run:
           name: "Compile"
-          command: "cd src && tsc ts2jsii.ts --m commonjs"
+          command: "cd src && ../node_modules/typescript/bin/tsc ts2jsii.ts --m commonjs"
       - run:
           name: "Test original.ts"
           command: "cd src && node ts2jsii.js ../test/original.ts"
