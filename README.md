@@ -8,15 +8,17 @@ $ npm install
 
 ##### Compile
 
+$ cd src
 $ tsc ts2jsii.ts --m commonjs
 
 
 ##### Running
 
-$ node ts2jsii.js original.ts
+$ cd src
+$ node ts2jsii.js ../test/original.ts
 
 
-##### Result as of Feb 17,2023
+##### Result as of Feb 23,2023
 
 ```
 import {

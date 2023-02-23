@@ -17,6 +17,10 @@
     "test2": "cd src && node ts2jsii.js ../test/original2.ts && cat ../output/bridge_original.ts",
     "test3": "cd src && node ts2jsii.js ../test/original3.ts && cat ../output/bridge_original.ts"
   },
+  "engines": {
+    "node": ">=14.17.1",
+    "npm": ">=6.14.13"
+  },
   "devDependencies": {
     "@types/node": "^18.13.0",
     "ts-morph": "^17.0.1"
